@@ -13,6 +13,7 @@ var seajs = global.seajs = {
   version: "3.0.1"
 }
 
+//data对象挂在seajs对象下面
 var data = seajs.data = {}
 
 
@@ -40,7 +41,7 @@ function cid() {
 /**
  * util-events.js - The minimal events support
  */
-
+events对象挂在seajs.data对象下面
 var events = data.events = {}
 
 // Bind event
@@ -55,21 +56,24 @@ seajs.on = function(name, callback) {
 // for all events
 seajs.off = function(name, callback) {
   // Remove *all* events
+  //如果name和callback都没有传入的话，直接把events恢复成对象{}
   if (!(name || callback)) {
     events = data.events = {}
     return seajs
   }
 
+//获取要取消的事件对应的函数数组
   var list = events[name]
-  if (list) {
-    if (callback) {
+  if (list) { //如果对应数组存在，如果不存在，则不做任何处理
+    if (callback) { //如果传入了callback参数
+      //遍历函数数组，如果有，则从该数组中剔除
       for (var i = list.length - 1; i >= 0; i--) {
         if (list[i] === callback) {
           list.splice(i, 1)
         }
       }
     }
-    else {
+    else {//没有传入callback参数，则直接把所有的注册函数数组都干掉
       delete events[name]
     }
   }
@@ -98,24 +102,29 @@ var emit = seajs.emit = function(name, data) {
 /**
  * util-path.js - The utilities for operating path such as id, uri
  */
-
+//目录名正则：不包含符号?#的任意字符，后面接符号/的字符串
 var DIRNAME_RE = /[^?#]*\//
-
+//点正则：前后都是符号/，中间是个点，全局匹配
 var DOT_RE = /\/\.\//g
+//2个点正则：符号/后面接非/的任意字符，再接/，再接2个连续的点符号.，再接/
 var DOUBLE_DOT_RE = /\/[^/]+\/\.\.\//
+//多斜线正则：非:/接双/
 var MULTI_SLASH_RE = /([^:/])\/+\//g
 
 // Extract the directory portion of a path
 // dirname("a/b/c.js?t=123#xx/zz") ==> "a/b/"
 // ref: http://jsperf.com/regex-vs-split/2
+//从路径path字符串中获取目录名
 function dirname(path) {
   return path.match(DIRNAME_RE)[0]
 }
 
 // Canonicalize a path
 // realpath("http://test.com/a//./b/../c") ==> "http://test.com/a/c"
+//规范化路径
 function realpath(path) {
   // /a/b/./c/./d ==> /a/b/c/d
+  //去掉路径中的点路径/./
   path = path.replace(DOT_RE, "/")
 
   /*
@@ -124,9 +133,11 @@ function realpath(path) {
     a///b/////c ==> a/b/c
     DOUBLE_DOT_RE matches a/b/c//../d path correctly only if replace // with / first
   */
+  //去掉相邻/
   path = path.replace(MULTI_SLASH_RE, "$1/")
 
   // a/b/c/../../d  ==>  a/b/../d  ==>  a/d
+  //去掉包含返回上一级目录的符号..
   while (path.match(DOUBLE_DOT_RE)) {
     path = path.replace(DOUBLE_DOT_RE, "/")
   }
@@ -142,34 +153,41 @@ function normalize(path) {
   var lastC = path.charCodeAt(last)
 
   // If the uri ends with `#`, just return it without '#'
+  //符号#的asc码值是35
   if (lastC === 35 /* "#" */) {
     return path.substring(0, last)
   }
-
+  //如果路径中最后包含了.js，或者路径中包含了?且不是第一个，或者最后一个字符是/（其asc码值是47），则直接返回该路径，分剖则，添加上.js
   return (path.substring(last - 2) === ".js" ||
       path.indexOf("?") > 0 ||
       lastC === 47 /* "/" */) ? path : path + ".js"
 }
 
-
+//路径正则：以非/:字符开始，接/再接至少一个任意字符
 var PATHS_RE = /^([^/:]+)(\/.+)$/
+//变量正则：至少一个非{符号，
 var VARS_RE = /{([^{]+)}/g
 
+//根据id，转换alias
 function parseAlias(id) {
+  //从data对象中取出alias对象，根据id，返回该id对应的值，如果没有，则直接返回该id
   var alias = data.alias
   return alias && isString(alias[id]) ? alias[id] : id
 }
 
+//根据id转换成路径
 function parsePaths(id) {
+  //从data对象中取出paths对象，
   var paths = data.paths
   var m
-
+  //m[1]是PATHS_RE第一个小括号正则所匹配到的字符串，m[2]是第二个小括号正则所匹配到的字符串
   if (paths && (m = id.match(PATHS_RE)) && isString(paths[m[1]])) {
     id = paths[m[1]] + m[2]
   }
 
   return id
 }
+
 
 function parseVars(id) {
   var vars = data.vars
