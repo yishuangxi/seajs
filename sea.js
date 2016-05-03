@@ -221,8 +221,9 @@ function parseMap(uri) {
   return ret
 }
 
-
+//绝对路径正则：以双/开头，接任意字符或者:，再接/
 var ABSOLUTE_RE = /^\/\/.|:\//
+//绝对目录正则：
 var ROOT_DIR_RE = /^.*?\/\/.*?\//
 
 function addBase(id, refUri) {
