@@ -41,7 +41,7 @@ function cid() {
 /**
  * util-events.js - The minimal events support
  */
-events对象挂在seajs.data对象下面
+//events对象挂在seajs.data对象下面
 var events = data.events = {}
 
 // Bind event
@@ -73,7 +73,7 @@ seajs.off = function(name, callback) {
         }
       }
     }
-    else {//没有传入callback参数，则直接把所有的注册函数数组都干掉
+    else {//没有传入callback参数，则直接把该事件名称所有的注册函数数组都干掉
       delete events[name]
     }
   }
@@ -88,6 +88,7 @@ var emit = seajs.emit = function(name, data) {
 
   if (list) {
     // Copy callback lists to prevent modification
+    //slice函数相当于python里面的切片语法，太优美了
     list = list.slice()
 
     // Execute event callbacks, use index because it's the faster.
@@ -102,11 +103,11 @@ var emit = seajs.emit = function(name, data) {
 /**
  * util-path.js - The utilities for operating path such as id, uri
  */
-//目录名正则：不包含符号?#的任意字符，后面接符号/的字符串
+//目录名正则：不包含符号?#的任意字符,这里*号是贪婪匹配，尽可能多的匹配前面中括号正则，后面接符号/的字符串
 var DIRNAME_RE = /[^?#]*\//
-//点正则：前后都是符号/，中间是个点，全局匹配
+//点正则：前后都是符号/，中间是个点，全局匹配：/./
 var DOT_RE = /\/\.\//g
-//2个点正则：符号/后面接非/的任意字符，再接/，再接2个连续的点符号.，再接/
+//2个点正则：符号/后面接非/的任意字符，再接/，再接2个连续的点符号.，再接/，其实就是这种：/a/../
 var DOUBLE_DOT_RE = /\/[^/]+\/\.\.\//
 //多斜线正则：非:/接双/
 var MULTI_SLASH_RE = /([^:/])\/+\//g
@@ -124,7 +125,7 @@ function dirname(path) {
 //规范化路径
 function realpath(path) {
   // /a/b/./c/./d ==> /a/b/c/d
-  //去掉路径中的点路径/./
+  //把路径中的点路径/./替换成/路径
   path = path.replace(DOT_RE, "/")
 
   /*
@@ -133,11 +134,12 @@ function realpath(path) {
     a///b/////c ==> a/b/c
     DOUBLE_DOT_RE matches a/b/c//../d path correctly only if replace // with / first
   */
-  //去掉相邻/
+  //去掉相邻双/
   path = path.replace(MULTI_SLASH_RE, "$1/")
 
   // a/b/c/../../d  ==>  a/b/../d  ==>  a/d
   //去掉包含返回上一级目录的符号..
+  //一直检查路径中是否包含这种类型的路径片段/a/../,如果有，直接将/a/../替换成/
   while (path.match(DOUBLE_DOT_RE)) {
     path = path.replace(DOUBLE_DOT_RE, "/")
   }
@@ -157,7 +159,7 @@ function normalize(path) {
   if (lastC === 35 /* "#" */) {
     return path.substring(0, last)
   }
-  //如果路径中最后包含了.js，或者路径中包含了?且不是第一个，或者最后一个字符是/（其asc码值是47），则直接返回该路径，分剖则，添加上.js
+  //如果路径中最后包含了.js，或者路径中包含了?且不是第一个，或者最后一个字符是/（其asc码值是47），则直接返回该路径，否则，添加上.js
   return (path.substring(last - 2) === ".js" ||
       path.indexOf("?") > 0 ||
       lastC === 47 /* "/" */) ? path : path + ".js"
