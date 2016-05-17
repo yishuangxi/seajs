@@ -160,6 +160,7 @@ function normalize(path) {
     return path.substring(0, last)
   }
   //如果路径中最后包含了.js，或者路径中包含了?且不是第一个，或者最后一个字符是/（其asc码值是47），则直接返回该路径，否则，添加上.js
+  //如果路径以?或者/或者.js结尾，则直接返回该路径，否则，在其后面加上.js再返回
   return (path.substring(last - 2) === ".js" ||
       path.indexOf("?") > 0 ||
       lastC === 47 /* "/" */) ? path : path + ".js"
@@ -167,10 +168,10 @@ function normalize(path) {
 
 //路径正则：以非/:字符开始，接/再接至少一个任意字符
 var PATHS_RE = /^([^/:]+)(\/.+)$/
-//变量正则：至少一个非{符号，
+//变量正则：左右各一个大括号，中间至少一个非{符号，
 var VARS_RE = /{([^{]+)}/g
 
-//根据id，转换alias
+//根据id，转换获取到alias
 function parseAlias(id) {
   //从data对象中取出alias对象，根据id，返回该id对应的值，如果没有，则直接返回该id
   var alias = data.alias
@@ -182,7 +183,7 @@ function parsePaths(id) {
   //从data对象中取出paths对象，
   var paths = data.paths
   var m
-  //m[1]是PATHS_RE第一个小括号正则所匹配到的字符串，m[2]是第二个小括号正则所匹配到的字符串
+  //m[0]是整个正则表达式匹配的字符串，m[1]是PATHS_RE第一个小括号正则所匹配到的字符串，m[2]是第二个小括号正则所匹配到的字符串，依次类推
   if (paths && (m = id.match(PATHS_RE)) && isString(paths[m[1]])) {
     id = paths[m[1]] + m[2]
   }
@@ -277,6 +278,7 @@ function id2Uri(id, refUri) {
 }
 
 // For Developers
+  //把id2Uri这个方法挂在seajs.resolve下
 seajs.resolve = id2Uri
 
 // Check environment
@@ -368,6 +370,7 @@ else {
  * util-request.js - The utilities for requesting script and style files
  * ref: tests/research/load-js-css/test.html
  */
+  //如果是webworker，则采用webworker的方式来加载：直接调用importScripts函数，无需创建script标签了
 if (isWebWorker) {
   function requestFromWebWorker(url, callback, charset, crossorigin) {
     // Load with importScripts
@@ -380,6 +383,7 @@ if (isWebWorker) {
     callback(error)
   }
   // For Developers
+  //request暴露成接口给用户
   seajs.request = requestFromWebWorker
 }
 else {
@@ -389,38 +393,50 @@ else {
 
   var currentlyAddingScript
 
+  //请求脚本函数
   function request(url, callback, charset, crossorigin) {
+    //创建script节点
     var node = doc.createElement("script")
 
+    //设置节点编码
     if (charset) {
       node.charset = charset
     }
-
+//设置是否跨域
     if (!isUndefined(crossorigin)) {
       node.setAttribute("crossorigin", crossorigin)
     }
-
+//给该node设置onload事件，seajs内部会做一些内部操作，也允许用户传入callback函数自行处理一些事情
     addOnload(node, callback, url)
-
+//设置该节点的加载方式为异步的
     node.async = true
+    //设置src源
     node.src = url
 
     // For some cache cases in IE 6-8, the script executes IMMEDIATELY after
     // the end of the insert execution, so use `currentlyAddingScript` to
     // hold current node, for deriving url in `define` call
+
+    //当前操作的node节点
     currentlyAddingScript = node
 
     // ref: #185 & http://dev.jquery.com/ticket/2709
+    //如果baseElement存在，则把node插入到baseElement之前，否则，把该node节点放在head标签最后一个子节点
     baseElement ?
         head.insertBefore(node, baseElement) :
         head.appendChild(node)
-
+    //解除currentlyAddingScript的引用
     currentlyAddingScript = null
   }
 
+  //该函数的目的是给node节点添加onload处理函数，允许用户传入自定义callback函数，同时，seajs内部也会执行相应的操作，主要是onload之后，删除该node节点
   function addOnload(node, callback, url) {
+    //貌似只要通过document.createElement创建node节点，'onload' in node都能返回true，但是node.onload则返回null
     var supportOnload = "onload" in node
 
+    //如果node标签支持onload事件，则给node绑定onload事件，事件处理函数也是onload，该函数定义在seajs源码内部
+    //同时，也给该node绑定onerror事件，如果该事件触发，则在seajs内部触发自定义error事件，并传入参数{uri: url, node: node}
+    //最后，也要执行onload函数，并传入参数为true
     if (supportOnload) {
       node.onload = onload
       node.onerror = function() {
@@ -428,6 +444,8 @@ else {
         onload(true)
       }
     }
+        //如果node不支持onload事件，则监听该node节点的readystatechange事件，
+    // 当node.readyState为loaded或者complete时（浏览器兼容），认为该节点已经加载完成，执行onload函数，不传入任何参数
     else {
       node.onreadystatechange = function() {
         if (/loaded|complete/.test(node.readyState)) {
@@ -436,23 +454,31 @@ else {
       }
     }
 
+    /****
+     * seajs内部执行onload函数，
+     * @param error 是否加载出错
+       */
     function onload(error) {
       // Ensure only run once and handle memory leak in IE
+      //解除该节点的所有绑定事件，防止内存泄漏
       node.onload = node.onerror = node.onreadystatechange = null
 
       // Remove the script to reduce memory leak
+      //根据debug状态，来决定是否删除该node。正式环境都会删除掉创建好的node节点
       if (!data.debug) {
         head.removeChild(node)
       }
 
       // Dereference the node
+      //解除node引用
       node = null
-
+      //调用回到函数，并传入error参数
       callback(error)
     }
   }
 
   // For Developers
+  //暴露成接口给用户
   seajs.request = request
 
 }
