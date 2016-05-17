@@ -488,7 +488,7 @@ var interactiveScript
 
   //获取当前操作的节点的方法
 function getCurrentScript() {
-  if (currentlyAddingScript) {
+    if (currentlyAddingScript) {
     return currentlyAddingScript
   }
 
@@ -497,10 +497,13 @@ function getCurrentScript() {
   // could query the script nodes and the one that is in "interactive"
   // mode indicates the current script
   // ref: http://goo.gl/JHfFW
+  //在ie6-9下，有可能会出现script标签的onload事件不能正常触发，这时候，脚本处于interactive状态，这时候，就可以返回该脚本
   if (interactiveScript && interactiveScript.readyState === "interactive") {
     return interactiveScript
   }
 
+  //怎么找出这个interactiveScript脚本？遍历head下面所有的脚本节点，确认其readyState属性，
+  // 如果该属性值是'interactive'，则标记该节点为interactiveScript节点，并返回该节点，作为currentlyAddingScript节点
   var scripts = head.getElementsByTagName("script")
 
   for (var i = scripts.length - 1; i >= 0; i--) {
