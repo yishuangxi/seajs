@@ -408,7 +408,8 @@ else {
     }
 //给该node设置onload事件，seajs内部会做一些内部操作，也允许用户传入callback函数自行处理一些事情
     addOnload(node, callback, url)
-//设置该节点的加载方式为异步的
+//设置该节点的加载方式为异步的：
+// 由于有些浏览器并不支持async模式，所以，这里可能会出现脚本阻塞加载的情况，这时候，currentlyAddingScript值可能会存在比较长时间
     node.async = true
     //设置src源
     node.src = url
@@ -417,7 +418,7 @@ else {
     // the end of the insert execution, so use `currentlyAddingScript` to
     // hold current node, for deriving url in `define` call
 
-    //当前操作的node节点
+    //用一个全局变量记录当前操作的node节点
     currentlyAddingScript = node
 
     // ref: #185 & http://dev.jquery.com/ticket/2709
@@ -425,7 +426,7 @@ else {
     baseElement ?
         head.insertBefore(node, baseElement) :
         head.appendChild(node)
-    //解除currentlyAddingScript的引用
+    //解除currentlyAddingScript全局变量对node节点的引用
     currentlyAddingScript = null
   }
 
@@ -485,6 +486,7 @@ else {
 
 var interactiveScript
 
+  //获取当前操作的节点的方法
 function getCurrentScript() {
   if (currentlyAddingScript) {
     return currentlyAddingScript
