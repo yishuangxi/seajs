@@ -486,7 +486,7 @@ else {
 
 var interactiveScript
 
-  //获取当前操作的节点的方法
+  //获取当前操作的script节点的方法
 function getCurrentScript() {
     if (currentlyAddingScript) {
     return currentlyAddingScript
@@ -522,6 +522,7 @@ function getCurrentScript() {
  */
 
 function parseDependencies(s) {
+  //如果字符串s里面找不到require，则直接返回空数组，说明无依赖
   if(s.indexOf('require') == -1) {
     return []
   }
@@ -529,6 +530,7 @@ function parseDependencies(s) {
   //parenthese：圆括号，brace：大括号
   var parentheseState = 0, parentheseStack = []
   var braceState, braceStack = [], isReturn
+  //一个字符一个字符的遍历字符串s
   while(index < length) {
     //这个readch函数做了2件事，
     //1，读取字符串s在index位置的字符，并将该值赋给peek变量
@@ -544,7 +546,7 @@ function parseDependencies(s) {
     }
         //如果peek是引号
     else if(isQuote()) {
-      //函数功能是截取该引号和下一个引号之间的字符串，并push到res数组当中去
+      //函数功能是截取该引号和下一个引号之间的字符串，确认该段字符串是modeName的话，则push到res数组当中去
       dealQuote()
       isReg = 1
       isReturn = 0
@@ -583,7 +585,7 @@ function parseDependencies(s) {
           isReturn = 0
         }
       }
-          //如果是正则
+          //如果斜线是正则
       else if(isReg) {
         //处理正则
         dealReg()
@@ -592,12 +594,14 @@ function parseDependencies(s) {
         braceState = 0
       }
       else {
+        //如果该peek后一个不是斜线，不是*号，并且也不是正则结束斜线，那么，该斜线就是正则开始斜线，那么，要把isReg标记为true
         index--
         isReg = 1
         isReturn = 0
         braceState = 1
       }
     }
+        //如果是普通的字母或者_$，
     else if(isWord()) {
       dealWord()
     }
@@ -688,8 +692,8 @@ function parseDependencies(s) {
       }
     }
 
-    //经过以上的处理后，可以往res里面添加字符串，该字符串是引号之间的字符串
-    //注意modName值的修改
+    //经过以上的处理后，并且判断出该段双引号之间的字符串是模块名字，则可以往res里面添加该字符串片段
+    //然后再修改modName值为0，即false
     if(modName) {
       //maybe substring is faster  than slice .
       res.push(s.substring(start, index - 1))
@@ -697,18 +701,25 @@ function parseDependencies(s) {
     }
   }
   function dealReg() {
+    //如果是正则开始，则首先让index回退一个位子
     index--
+    //然后从当前位子开始找下一个正则表达式斜线/
     while(index < length) {
+      //读一个字符
       readch()
+      //如果是反斜线，即转义字符，则让index移到下一个位子，不做任何处理
       if(peek == '\\') {
         index++
       }
+          //如果peek是正斜线，则终止该子循环，因为正则下一条斜线已经找到了
       else if(peek == '/') {
         break
       }
+          //如果peek是左中括号，则一直往后读，直到读出下一个右中括号，再终止循环
       else if(peek == '[') {
         while(index < length) {
           readch()
+          //中间做转义字符斜线的判断，是为了提升效率，可以少查找一次字符
           if(peek == '\\') {
             index++
           }
@@ -724,13 +735,18 @@ function parseDependencies(s) {
   }
   function dealWord() {
     var s2 = s.slice(index - 1)
+    //这里注意RegExp.prototype.exec方法的使用：https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/RegExp/exec
+    //从s2字符串中找出和正则表达式/^[\w$]+/相匹配的字符串出来
+    //注意，这里[\w$]其实就是[a-z_$]并且要忽略大小写，其实就是isWord函数中使用到的字符串
     var r = /^[\w$]+/.exec(s2)[0]
+    //如果从s2中匹配出了if，for，while,with中的任何一个，则让parentheseState为true，即小括号标记置为true
     parentheseState = {
       'if': 1,
       'for': 1,
       'while': 1,
       'with': 1
     }[r]
+    //如果从s2中匹配出了break, case，continue等如下罗列的关键词，则isReg也置为true
     isReg = {
       'break': 1,
       'case': 1,
@@ -747,14 +763,17 @@ function parseDependencies(s) {
       'typeof': 1,
       'void': 1
     }[r]
+    //如果从s2中匹配出来的字符串刚好是return，则isReturn置为true
     isReturn = r == 'return'
+    //如果从s2中匹配出的字符串是instanceof, delete, void, typeof, return之一，则将braceState置为true
     braceState = {
       'instanceof': 1,
       'delete': 1,
       'void': 1,
       'typeof': 1,
       'return': 1
-    }.hasOwnProperty(r)
+    }.hasOwnProperty(r)  //这里调用的hasOwnProperty和前面直接访问属性操作符[r]作用一致
+    
     modName = /^require\s*(?:\/\*[\s\S]*?\*\/\s*)?\(\s*(['"]).+?\1\s*[),]/.test(s2)
     if(modName) {
       r = /^require\s*(?:\/\*[\s\S]*?\*\/\s*)?\(\s*['"]/.exec(s2)[0]
