@@ -526,30 +526,44 @@ function parseDependencies(s) {
     return []
   }
   var index = 0, peek, length = s.length, isReg = 1, modName = 0, res = []
+  //parenthese：圆括号，brace：大括号
   var parentheseState = 0, parentheseStack = []
   var braceState, braceStack = [], isReturn
   while(index < length) {
+    //这个readch函数做了2件事，
+    //1，读取字符串s在index位置的字符，并将该值赋给peek变量
+    //2，index++
+    //源码： peek = s.charAt(index++)
     readch()
+    //isBlank函数用正则表达式/\s/测试peek变量是否是空字符串，空字符串包括：\r,\n, 空格，\t等等
     if(isBlank()) {
       if(isReturn && (peek == '\n' || peek == '\r')) {
         braceState = 0
         isReturn = 0
       }
     }
+        //如果peek是引号
     else if(isQuote()) {
+      //函数功能是截取该引号和下一个引号之间的字符串，并push到res数组当中去
       dealQuote()
       isReg = 1
       isReturn = 0
       braceState = 0
     }
+        //如果peek是斜线/
     else if(peek == '/') {
+      //继续往后读一个字符，
       readch()
+      //如果读出的后一个字符也是斜线/，那么，说明这一行都是注释
       if(peek == '/') {
+        //把index直接跳转到该行的末尾
         index = s.indexOf('\n', index)
+        //如果没有换行符了，那么直接让index的值等于字符串s的长度，这样主循环就会终止
         if(index == -1) {
           index = s.length
         }
       }
+          //如果peek是一个*号
       else if(peek == '*') {
         var i = s.indexOf('\n', index)
         index = s.indexOf('*/', index)
@@ -638,26 +652,37 @@ function parseDependencies(s) {
     return peek == '"' || peek == "'"
   }
   function dealQuote() {
+    //
     var start = index
     var c = peek
+    //indexOf用法：还可以指定从某一个位置开始检索
     var end = s.indexOf(c, start)
+    //如果没有找到对应的引号，那么index直接跳到字符串最后的位置，这是，主函数中while循环结束
     if(end == -1) {
       index = length
     }
+        //否则，找到了引号，其位置end前一个位置不为反斜杠，则index就直接跳到end后一个位置去
+        //这里应该是引号转义的问题，如果该引号被转义了，那么，该引号就不算，index跳到end后一个位置去
     else if(s.charAt(end - 1) != '\\') {
       index = end + 1
     }
     else {
+      //继续从当前位置往下读字符
       while(index < length) {
         readch()
+        //如果找到了peek为转义字符\，则让index++;
         if(peek == '\\') {
           index++
         }
+            //如果peek是引号，则break该子循环
         else if(peek == c) {
           break
         }
       }
     }
+
+    //经过以上的处理后，可以往res里面添加字符串，该字符串是引号之间的字符串
+    //注意modName值的修改
     if(modName) {
       //maybe substring is faster  than slice .
       res.push(s.substring(start, index - 1))
