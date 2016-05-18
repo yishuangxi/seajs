@@ -550,7 +550,7 @@ function parseDependencies(s) {
       isReturn = 0
       braceState = 0
     }
-        //如果peek是斜线/
+        //如果peek是斜线/，这里要判断下一个字符是斜线/，还是*号了
     else if(peek == '/') {
       //继续往后读一个字符，
       readch()
@@ -565,20 +565,27 @@ function parseDependencies(s) {
       }
           //如果peek是一个*号
       else if(peek == '*') {
+        //首先用i变量记住换行符的位置
         var i = s.indexOf('\n', index)
+        //重置index，查到对应注释*/的位置
         index = s.indexOf('*/', index)
+        //如果没有找到对应的*/字符串，那么，终止主循环
         if(index == -1) {
           index = length
         }
+            //否则，让index跳到*/后面，即index值+2即可
         else {
           index += 2
         }
+
         if(isReturn && i != -1 && i < index) {
           braceState = 0
           isReturn = 0
         }
       }
+          //如果是正则
       else if(isReg) {
+        //处理正则
         dealReg()
         isReg = 0
         isReturn = 0
