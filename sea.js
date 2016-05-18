@@ -773,12 +773,20 @@ function parseDependencies(s) {
       'typeof': 1,
       'return': 1
     }.hasOwnProperty(r)  //这里调用的hasOwnProperty和前面直接访问属性操作符[r]作用一致
-    
+
+    //确认该段字符串是模块名字的正则表达式
+    //以require开始，后面接任意多空格，再接任意可选的一段注释/**/,注释中间有一段任意长度的任意字符串（任意字符串正则表示方法[\s\S]，有意思哈），并且不捕获该段正则表达式匹配的文本
+    //然后再接小括号，再接任意多空格，再接单引号或者双引号，并且给该小段做正则表达式组号分配为1，方便后面重复利用该单引号或者双引号
+    //然后再接至少一个的除换行符以外的任意字符，后面的?代表尽量少匹配，然后再接之前的正则分组号1，即单引号或者双引号，再接越多越好的任意多空格，
+    //再接小括号，或者逗号。如果是小括号，则说明是同步模块，如果是逗号，则说明可能有异步模块
     modName = /^require\s*(?:\/\*[\s\S]*?\*\/\s*)?\(\s*(['"]).+?\1\s*[),]/.test(s2)
+    //如果能够从s2字符串中匹配到这种正则表达式，那么，从s2字符串中提出出来该modName
+    // ，然后index直接跳过r.length-2个位子。这里有必要解释一下为什么是r.length-2个位子
     if(modName) {
       r = /^require\s*(?:\/\*[\s\S]*?\*\/\s*)?\(\s*['"]/.exec(s2)[0]
       index += r.length - 2
     }
+        //如果不是modeName，index跳过xxx个位子
     else {
       index += /^[\w$]+(?:\s*\.\s*[\w$]+)*/.exec(s2)[0].length - 1
     }
@@ -788,17 +796,22 @@ function parseDependencies(s) {
       || peek == '.' && /\d/.test(s.charAt(index))
   }
   function dealNumber() {
+    //处理数字，从index-1处截断
     var s2 = s.slice(index - 1)
     var r
+    //如果读出来的peek字符是点
     if(peek == '.') {
+      //小数的科学计数法表示
       r = /^\.\d+(?:E[+-]?\d*)?\s*/i.exec(s2)[0]
     }
+        //如果在s2中存在十六进制数
     else if(/^0x[\da-f]*/i.test(s2)) {
       r = /^0x[\da-f]*\s*/i.exec(s2)[0]
     }
     else {
       r = /^\d+\.?\d*(?:E[+-]?\d*)?\s*/i.exec(s2)[0]
     }
+    //然后，index就可以跳过xxx个位子了，这样就提升了效率！
     index += r.length - 1
     isReg = 0
   }
