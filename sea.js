@@ -818,9 +818,8 @@ function parseDependencies(s) {
 }
 
 /**
- * module.js - The core of module loader
+ * module.js - The core of module loader：模块加载器核心
  */
-
 var cachedMods = seajs.cache = {}
 var anonymousMeta
 
@@ -828,6 +827,7 @@ var fetchingList = {}
 var fetchedList = {}
 var callbackList = {}
 
+  //定义好模块的状态
 var STATUS = Module.STATUS = {
   // 1 - The `module.uri` is being fetched
   FETCHING: 1,
@@ -845,17 +845,24 @@ var STATUS = Module.STATUS = {
   ERROR: 7
 }
 
-
-function Module(uri, deps) {
+  /****
+   * 模块构造函数
+   * @param uri 模块uri地址
+   * @param deps  模块依赖，是一个数组，可选
+   * @constructor
+     */
+    function Module(uri, deps) {
   this.uri = uri
   this.dependencies = deps || []
   this.deps = {} // Ref the dependence modules
   this.status = 0
 
+    //这个entry是个什么鬼？
   this._entry = []
 }
 
 // Resolve module.dependencies
+  //根据模块依赖的id列表，转换成模块依赖的uri地址列表，重点解析Module.resolve函数
 Module.prototype.resolve = function() {
   var mod = this
   var ids = mod.dependencies
@@ -948,8 +955,10 @@ Module.prototype.load = function() {
 }
 
 // Call this method when module is loaded
+  //onload事件句柄
 Module.prototype.onload = function() {
   var mod = this
+  //把模块状态置为loaded
   mod.status = STATUS.LOADED
 
   // When sometimes cached in IE, exec will occur before onload, make sure len is an number
@@ -964,6 +973,7 @@ Module.prototype.onload = function() {
 }
 
 // Call this method when module is 404
+  //模块拉取错误的时候，先执行onload，再设置状态
 Module.prototype.error = function() {
   var mod = this
   mod.onload()
@@ -977,17 +987,21 @@ Module.prototype.exec = function () {
   // When module is executed, DO NOT execute it again. When module
   // is being executed, just return `module.exports` too, for avoiding
   // circularly calling
+  //如果模块正在或者已经被执行了，就直接返回module.exports
   if (mod.status >= STATUS.EXECUTING) {
     return mod.exports
   }
 
+  //只要模块执行了，就立马将其状态设置成执行中
   mod.status = STATUS.EXECUTING
 
+  //如果_entry存在并且其长度是0的话，就直接删除该_entry了
   if (mod._entry && !mod._entry.length) {
     delete mod._entry
   }
 
   //non-cmd module has no property factory and exports
+  //如果模块并没有自己的factory方法，则将该模块标记成非标准的cmd模块，然后返回空
   if (!mod.hasOwnProperty('factory')) {
     mod.non = true
     return
@@ -1016,23 +1030,32 @@ Module.prototype.exec = function () {
   // Exec factory
   var factory = mod.factory
 
+  //如果factory是函数，则设置模块的exports属性为空对象，并作为该函数执行上下文，
+  //传入3个参数require, exports, module，即这种调用方式define(function(require, exports, module){/*这里是代码*/})
+  //否则，直接返回该factory，即这种类型的调用方式：define({key:'value'})
   var exports = isFunction(factory) ?
     factory.call(mod.exports = {}, require, mod.exports, mod) :
     factory
 
+  //如果exports为空，即define中什么都没有传入，或者factory函数返回值为undefined，则让exports直接等于mod.exports
   if (exports === undefined) {
     exports = mod.exports
   }
 
+  //工厂函数执行完以后，就不会再被执行第二遍了，所以直接删除掉该工厂函数，减少内存占用
   // Reduce memory leak
   delete mod.factory
 
+  //将exports的值赋给mod.exports，以将其值暴露出去
   mod.exports = exports
+  //修改mod的拉取状态为已执行
   mod.status = STATUS.EXECUTED
 
   // Emit `exec` event
+  //触发exec事件，传入的参数即是模块mod本身的引用
   emit("exec", mod)
 
+  //返回
   return mod.exports
 }
 
@@ -1107,31 +1130,46 @@ Module.prototype.fetch = function(requestCache) {
 }
 
 // Resolve id to uri
+  //这个函数其实主要的还是调用了seajs.resolve函数，
 Module.resolve = function(id, refUri) {
   // Emit `resolve` event for plugins such as text plugin
   var emitData = { id: id, refUri: refUri }
+  //触发resolve事件，传入emitData引用
   emit("resolve", emitData)
-
+  //如果resolve事件处理句柄能够处理好uri，那么久直接返回emitData.uri，否则，调用seajs.resolve函数去处理
   return emitData.uri || seajs.resolve(emitData.id, refUri)
 }
 
 // Define a module
+  /****
+   * define函数
+   * @param id  当前定义的模块id
+   * @param deps 当前定义模块的依赖
+   * @param factory  当前定义模块的工厂函数
+     */
 Module.define = function (id, deps, factory) {
+
   var argsLen = arguments.length
 
-  // define(factory)
+  //这前面一截if语句，只能算是预处理，把id,deps，factory归为，该死的，死掉，该活的，活下来
+  // 如果只有一个参数，那么，该参数一定是factory
+  //由于第一个参数是id，那么，只能把id赋值给factory，然后，id就牺牲了
+  //define(factory)
   if (argsLen === 1) {
     factory = id
     id = undefined
   }
+      //如果是2个参数，那么，第二个参数（总之是最后一个参数）是factory了
   else if (argsLen === 2) {
     factory = deps
 
     // define(deps, factory)
+    //如果第一个参数是数组，则说明该参数是依赖，那么，把第一个参数id赋值给变量deps，然后，id又这么牺牲了
     if (isArray(id)) {
       deps = id
       id = undefined
     }
+        //当然，如果id不是数组，那么，他一定要是真正的id了，有因为最后一个参数要是factory，所以，deps就这样默默牺牲了
     // define(id, factory)
     else {
       deps = undefined
@@ -1139,10 +1177,15 @@ Module.define = function (id, deps, factory) {
   }
 
   // Parse dependencies according to the module factory code
+  //现在对上面的牺牲成果做判断的时候了
+  //字面意思是，如果deps不是数组，并且factory是函数：
+  //深层次意思是：如果没有指定deps，并且factory是函数，那么就要使用parseDependencies这种惨绝人寰的方法去获取依赖了，所以，兄弟们，用seajs的时候，一定要声明依赖啊，这样效率会高很多
   if (!isArray(deps) && isFunction(factory)) {
+    //如果parseDependices未定义，那么，就将空数组复制给deps，否则，先把factory转变成字符串，然后再传入函数parseDependencies，得到的结果再赋值给deps
+    //这里好惨！！！要得到个依赖实在是不容易，要知道，parseDependencies函数是一个一个字符去读factory.toString()啊！！！太难了
     deps = typeof parseDependencies === "undefined" ? [] : parseDependencies(factory.toString())
   }
-
+  //定义一个元数据
   var meta = {
     id: id,
     uri: Module.resolve(id),
