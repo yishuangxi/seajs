@@ -1011,6 +1011,7 @@ Module.prototype.exec = function () {
   var uri = mod.uri
 
   function require(id) {
+    //
     var m = mod.deps[id] || Module.get(require.resolve(id))
     if (m.status == STATUS.ERROR) {
       throw new Error('module was broken: ' + m.uri)
@@ -1214,30 +1215,43 @@ Module.define = function (id, deps, factory) {
 }
 
 // Save meta data to cachedMods
+  //保存模块
 Module.save = function(uri, meta) {
   var mod = Module.get(uri)
 
   // Do NOT override already saved modules
+  //如果当前的模块状态还未保存，才能保存模块
   if (mod.status < STATUS.SAVED) {
     mod.id = meta.id || uri
     mod.dependencies = meta.deps || []
     mod.factory = meta.factory
     mod.status = STATUS.SAVED
 
+    //这里触发save事件：save事件绑定由用户自定义绑定，seajs源码里面并没有做任何处理，等于是seajs暴露有一个接口给用户
     emit("save", mod)
   }
 }
 
 // Get an existed module or create a new one
+  //根据uri取模块，如果没有，则创建该模块，并返回该模块
+  //这里获取的时候，会有一个设计不优雅的问题，即必须把deps也传入该get方法
 Module.get = function(uri, deps) {
   return cachedMods[uri] || (cachedMods[uri] = new Module(uri, deps))
 }
 
 // Use function is equal to load a anonymous module
-Module.use = function (ids, callback, uri) {
+  /****
+   *
+   * @param ids 依赖模块，
+   * @param callback
+   * @param uri
+     */
+  Module.use = function (ids, callback, uri) {
+  //根据uri获取模块，同时把依赖也传进去
   var mod = Module.get(uri, isArray(ids) ? ids : [ids])
-
+//把当前模块存入当前模块的入口属性？？？这个是啥意思
   mod._entry.push(mod)
+    //
   mod.history = {}
   mod.remain = 1
 
@@ -1264,13 +1278,14 @@ Module.use = function (ids, callback, uri) {
 
 
 // Public API
-
+//对外API，其实内部调用的是Module.use函数
 seajs.use = function(ids, callback) {
   Module.use(ids, callback, data.cwd + "_use_" + cid())
   return seajs
 }
 
 Module.define.cmd = {}
+  //全局的define函数，其实就是Module.define函数
 global.define = Module.define
 
 
@@ -1319,26 +1334,34 @@ data.charset = "utf-8"
 // data.map - An array containing rules to map module uri
 // data.debug - Debug mode. The default value is false
 
+
 seajs.config = function(configData) {
 
   for (var key in configData) {
+    //当前配置curr
     var curr = configData[key]
+    //用变量prev保存之前data中已经有的key值
     var prev = data[key]
 
     // Merge object config such as alias, vars
+    //如果之前的配置已经存在并且是一个对象，那么，将当前curr对象中的值全部拷贝到prev对象中去
     if (prev && isObject(prev)) {
       for (var k in curr) {
         prev[k] = curr[k]
       }
     }
+        //否则，把新加的配置curr缓存到data上去，即data[key]=curr
     else {
       // Concat array config such as map
+      //否则，如果prev是个数组的话，则把当前的curr对象合并到prev数组，并重新赋值给curr对象，此时，curr已经是一个新的数组，prev+curr的新数组
       if (isArray(prev)) {
         curr = prev.concat(curr)
       }
       // Make sure that `data.base` is an absolute path
+          //如果key是base配置
       else if (key === "base") {
         // Make sure end with "/"
+        //如果该配置不是以/结尾，那么就给该配置补上一个/
         if (curr.slice(-1) !== "/") {
           curr += "/"
         }
@@ -1346,10 +1369,12 @@ seajs.config = function(configData) {
       }
 
       // Set config
+      //将该配置项保存到data对象，值为当前配置
       data[key] = curr
     }
   }
 
+  //触发config事件，方便开发人员为此事件设置事件句柄
   emit("config", configData)
   return seajs
 }
