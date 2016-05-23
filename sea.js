@@ -115,7 +115,7 @@ var MULTI_SLASH_RE = /([^:/])\/+\//g
 // Extract the directory portion of a path
 // dirname("a/b/c.js?t=123#xx/zz") ==> "a/b/"
 // ref: http://jsperf.com/regex-vs-split/2
-//从路径path字符串中获取目录名
+//从路径path字符串中获取目录名，其实就是获取路径中第一个斜杠前的名字
 function dirname(path) {
   return path.match(DIRNAME_RE)[0]
 }
@@ -150,6 +150,8 @@ function realpath(path) {
 // Normalize an id
 // normalize("path/to/a") ==> "path/to/a.js"
 // NOTICE: substring is faster than negative slice and RegExp
+//其实就是给路径添加*.js后缀，部分不需要添加的不要就行，比如已经有.js后缀的，
+//或者带查询问好的即http://www.baidu.com?q=1之类的
 function normalize(path) {
   var last = path.length - 1
   var lastC = path.charCodeAt(last)
@@ -166,7 +168,7 @@ function normalize(path) {
       lastC === 47 /* "/" */) ? path : path + ".js"
 }
 
-//路径正则：以非/:字符开始，接/再接至少一个任意字符
+//路径正则：以非/:字符开始，接/，再接至少一个任意字符
 var PATHS_RE = /^([^/:]+)(\/.+)$/
 //变量正则：左右各一个大括号，中间至少一个非{符号，
 var VARS_RE = /{([^{]+)}/g
@@ -178,12 +180,16 @@ function parseAlias(id) {
   return alias && isString(alias[id]) ? alias[id] : id
 }
 
-//根据id转换成路径
+//根据paths配置进行路径转换，这里虽然参数名叫id，但是其实并不是id参数
 function parsePaths(id) {
   //从data对象中取出paths对象，
   var paths = data.paths
   var m
   //m[0]是整个正则表达式匹配的字符串，m[1]是PATHS_RE第一个小括号正则所匹配到的字符串，m[2]是第二个小括号正则所匹配到的字符串，依次类推
+  //1，paths做了配置
+  //2，id能够匹配到PATHS_RE正则
+  //3，id的第一个斜杠/之前的名字，在paths对象中进行了配置
+  //如果以上3个条件都符合，那么，把id的第一个斜杠之前的字符串替换成paths
   if (paths && (m = id.match(PATHS_RE)) && isString(paths[m[1]])) {
     id = paths[m[1]] + m[2]
   }
@@ -191,7 +197,12 @@ function parsePaths(id) {
   return id
 }
 
-
+//注意replace的用法：https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/replace
+//第一个参数m代表整个正则表达式的匹配字符串，
+//第二个参数key表示正则表达式中第一个分组匹配到的字符串
+//倒数第1个参数代表原字符串
+//倒数第二个参数代表匹配到的位置
+//函数的返回值替换到对应的正则
 function parseVars(id) {
   var vars = data.vars
 
@@ -204,6 +215,7 @@ function parseVars(id) {
   return id
 }
 
+//map映射转换
 function parseMap(uri) {
   var map = data.map
   var ret = uri
@@ -259,10 +271,19 @@ function addBase(id, refUri) {
   return realpath(ret)
 }
 
-function id2Uri(id, refUri) {
+  /****
+   * 将id转成uri
+   * @param id
+   * @param refUri
+   * @returns {*}
+     */
+    function id2Uri(id, refUri) {
+    //如果没传入id，直接返回空字符串
   if (!id) return ""
 
+    //首先去读简写：简写对象配置在缓存对象data下面：data.alias
   id = parseAlias(id)
+    //
   id = parsePaths(id)
   id = parseAlias(id)
   id = parseVars(id)
@@ -1135,7 +1156,7 @@ Module.prototype.fetch = function(requestCache) {
 Module.resolve = function(id, refUri) {
   // Emit `resolve` event for plugins such as text plugin
   var emitData = { id: id, refUri: refUri }
-  //触发resolve事件，传入emitData引用
+  //触发resolve事件，传入emitData引用：这里对开发人员暴露出resolve事件接口，用户可以自定义resolve事件
   emit("resolve", emitData)
   //如果resolve事件处理句柄能够处理好uri，那么久直接返回emitData.uri，否则，调用seajs.resolve函数去处理
   return emitData.uri || seajs.resolve(emitData.id, refUri)
