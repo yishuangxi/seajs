@@ -115,7 +115,8 @@ var MULTI_SLASH_RE = /([^:/])\/+\//g
 // Extract the directory portion of a path
 // dirname("a/b/c.js?t=123#xx/zz") ==> "a/b/"
 // ref: http://jsperf.com/regex-vs-split/2
-//从路径path字符串中获取目录名，其实就是获取路径中第一个斜杠前的名字
+//从路径path字符串中获取目录名，这里并不是获取第一个斜杠之前的路径，而是获取最后一个斜杠之前的路径，因为正则表达式中*号是贪婪匹配的意思
+  //其中，要非?和#号，因为?代表传入get参数了，而#号代表hash了
 function dirname(path) {
   return path.match(DIRNAME_RE)[0]
 }
@@ -246,28 +247,35 @@ function addBase(id, refUri) {
   var first = id.charCodeAt(0)
 
   // Absolute
+  //如果id已经是绝对路径了，则返回值就是id
   if (ABSOLUTE_RE.test(id)) {
     ret = id
   }
   // Relative
+  //如果第一个字符是.，则代表相对路径
   else if (first === 46 /* "." */) {
+    //如果传入了refUri，那么，从当前的refUri中取出路径名，否则，从data配置中拿出cwd配置，再接上id
     ret = (refUri ? dirname(refUri) : data.cwd) + id
   }
   // Root
+  //如果第一个字符是/，那么是根路径
   else if (first === 47 /* "/" */) {
     var m = data.cwd.match(ROOT_DIR_RE)
     ret = m ? m[0] + id.substring(1) : id
   }
   // Top-level
+      //如果不是以上任何一个，只是简单的路径，如a/b/c.js，那么，给其加上base路径
   else {
     ret = data.base + id
   }
 
   // Add default protocol when uri begins with "//"
+  //给以//开头的加上协议
   if (ret.indexOf("//") === 0) {
     ret = location.protocol + ret
   }
 
+  //调用realpath，去掉path中多余的东西，比如//, /./, /../之类的，
   return realpath(ret)
 }
 
@@ -283,18 +291,27 @@ function addBase(id, refUri) {
 
     //首先去读简写：简写对象配置在缓存对象data下面：data.alias
   id = parseAlias(id)
-    //
+    //根据paths配置，修改当前路径
   id = parsePaths(id)
+    //再次根据简写配置，修改id
   id = parseAlias(id)
+  //根据vars配置修改id
   id = parseVars(id)
+  //再次根据简写修改id
   id = parseAlias(id)
+  //给路径添加必要的.js后缀
   id = normalize(id)
+  //再次根据alias配置，修改id
   id = parseAlias(id)
 
+  //根据给id添加基本路径
   var uri = addBase(id, refUri)
+    //再次取简写
   uri = parseAlias(uri)
+    //最后再匹配map配置
   uri = parseMap(uri)
 
+    //生成最终的uri
   return uri
 }
 
@@ -311,6 +328,7 @@ var loaderDir
 // Sea.js's full path
 var loaderPath
 // Location is read-only from web worker, should be ok though
+  //如果href没有，或者是无效的，那么，cwd就为空，否则，从href中取文件名，即第一个斜杠/之前的字符串
 var cwd = (!location.href || IGNORE_LOCATION_RE.test(location.href)) ? '' : dirname(location.href)
 
 if (isWebWorker) {
